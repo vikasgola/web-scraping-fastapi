@@ -132,7 +132,6 @@ class DentalStall:
             self.scraped_with_image += 1
 
     def save(self, storage: Storage) -> None:
-        logging.info("Saving products in DB.")
         self.updated_in_db = 0
         for product in self.products.values():
             storage.put(product.sku, product.asdict)
