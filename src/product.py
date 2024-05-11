@@ -5,8 +5,7 @@ class Product:
     sku: str
     title: str
     price: str
-    image_url: str
-    url: str
+    image_path: str
 
     @property
     def asdict(self):
