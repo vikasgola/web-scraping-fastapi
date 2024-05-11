@@ -53,8 +53,11 @@ class DentalStall:
         try:
             html_code = self.fetch_page(nth_page)
         except requests.exceptions.ProxyError as err:
-            logging.error(f"Failed to connect to {config.PROXY} proxy.")
-            return
+            logging.error(f"Failed to connect to {config.PROXY} proxy. Trying again in 5 seconds.")
+            raise
+        except requests.exceptions.ConnectionError as exc:
+            logging.error(f"Failed to connect to {nth_page} page. Trying again in 5 seconds.")
+            raise
 
         logging.info(f"Parsing page {nth_page}...")
         self._parse_page_html(html_code)
