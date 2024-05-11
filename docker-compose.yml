@@ -1,0 +1,18 @@
+version: "3"
+services:
+  dentalstall:
+    build: ./
+    image: dentalstall
+    container_name: dentalstall
+    command: fastapi run
+    volumes:
+      - ./:/app
+    ports:
+      - "8123:8000"
+    depends_on:
+      - scrap_redis
+    restart: on-failure
+  scrap_redis:
+    image: redis
+    container_name: scrap_redis
+    restart: on-failure
