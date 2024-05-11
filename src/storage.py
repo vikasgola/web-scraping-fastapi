@@ -1,4 +1,5 @@
 import json
+import os
 
 from abc import ABC, abstractmethod
 
@@ -25,6 +26,8 @@ class JsonFileStorage(Storage):
 
     def _load(self):
         try:
+            directory = os.path.dirname(self.path)
+            os.makedirs(directory, exist_ok=True)
             with open(self.path, "r") as f:
                 self.data = json.load(f)
         except FileNotFoundError as err:

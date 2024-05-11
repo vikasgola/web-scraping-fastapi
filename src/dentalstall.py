@@ -13,6 +13,18 @@ from src.storage import Storage
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 IMAGES_PATH = "resources/images/"
 
+
+# configure proxy for requests
+PROXIES = {}
+if config.PROXY:
+    if config.PROXY.startswith("http:"):
+        PROXIES["http"] = config.PROXY
+    elif config.PROXY.startswith("https:"):
+        PROXIES["http"] = config.PROXY
+    else:
+        logging.warning(f"Invalid proxy {config.PROXY}. PROXY config should starts with http or https.")
+
+
 # connect to redis for cache
 try:
     cache = redis.Redis(host='scrap_redis', port=6379, decode_responses=True)
@@ -34,10 +46,16 @@ class DentalStall:
         self.updated_in_db: int = 0
         self.scraped_with_image: int = 0
         self.parsed_products: int = 0
+        os.makedirs(IMAGES_PATH, exist_ok=True)
 
     def parse_page(self, nth_page: int) -> None:
         logging.info(f"Fetching page {nth_page}...")
-        html_code = self.fetch_page(nth_page)
+        try:
+            html_code = self.fetch_page(nth_page)
+        except requests.exceptions.ProxyError as err:
+            logging.error(f"Failed to connect to {config.PROXY} proxy.")
+            return
+
         logging.info(f"Parsing page {nth_page}...")
         self._parse_page_html(html_code)
         logging.info(f"Completed page {nth_page}.")
@@ -45,18 +63,17 @@ class DentalStall:
     def fetch_page(self, page_number: int) -> str:
         response = requests.get(
             self.DENTAL_STALL_URL.format(page_number),
-            headers=self.DENTAL_STALL_HEADERS
+            headers=self.DENTAL_STALL_HEADERS,
+            proxies=PROXIES
         )
         return response.text
 
     def _to_product(self, product_details: dict[str, str]) -> str:
         image_url = product_details.pop("image_url")
         file_name = product_details.get("sku") + "." + image_url.split(".")[-1]
-        response = requests.get(image_url)
+        response = requests.get(image_url, proxies=PROXIES)
         if response.status_code == 200:
             file_path = IMAGES_PATH + file_name
-            if not os.path.exists(IMAGES_PATH):
-                os.makedirs(IMAGES_PATH)
             with open(file_path, "wb") as f:
                 f.write(response.content)
             product_details["image_path"] = file_path
