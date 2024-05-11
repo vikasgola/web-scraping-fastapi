@@ -24,11 +24,11 @@ def start_scraping() -> None:
     results = []
     with ThreadPoolExecutor(max_workers=4) as executor:
         results = executor.map(dentalstall.parse_page, list(range(1, config.N_PAGES+1)))
-    print([r for r in results if r])
-    dentalstall.save(storage)
 
-    print(f"Parsed {dentalstall.scraped_with_image} products with image from {config.N_PAGES} pages!")
-    print(f"Updated {dentalstall.updated_in_db} products in database!")
+    results = [r for r in results if r]
+    print(results)
+    dentalstall.save(storage)
+    dentalstall.notify()
 
 
 @app.get("/status")

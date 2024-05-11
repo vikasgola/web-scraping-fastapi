@@ -1,10 +1,26 @@
-import requests, os
+import logging
+import redis.exceptions
+import requests
+import redis
+import os
 
 from bs4 import BeautifulSoup, Tag
+from src import config
 from src.product import Product
 from src.storage import Storage
 
+
+logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 IMAGES_PATH = "resources/images/"
+
+# connect to redis for cache
+try:
+    cache = redis.Redis(host='scrap_redis', port=6379, decode_responses=True)
+    cache.ping()
+    logging.info("Connected to redis for caching.")
+except redis.exceptions.ConnectionError as err:
+    logging.error("Failed to connect with redis for caching. continuing without cache.")
+    cache = None
 
 
 class DentalStall:
@@ -17,14 +33,16 @@ class DentalStall:
         self.products: dict[str, Product] = {}
         self.updated_in_db: int = 0
         self.scraped_with_image: int = 0
+        self.parsed_products: int = 0
 
-    def parse_page(self, nth_page: int):
+    def parse_page(self, nth_page: int) -> None:
+        logging.info(f"Fetching page {nth_page}...")
         html_code = self.fetch_page(nth_page)
+        logging.info(f"Parsing page {nth_page}...")
         self._parse_page_html(html_code)
+        logging.info(f"Completed page {nth_page}.")
 
     def fetch_page(self, page_number: int) -> str:
-        # with open("resources/page_1.html") as page_1:
-        #     return page_1.read()
         response = requests.get(
             self.DENTAL_STALL_URL.format(page_number),
             headers=self.DENTAL_STALL_HEADERS
@@ -44,7 +62,7 @@ class DentalStall:
             product_details["image_path"] = file_path
             return Product(**product_details)
         else:
-            print(f"failed to download image for {product_details.get('sku')} from image_url.")
+            logging.warning(f"Failed to download image for {product_details.get('sku')} from image_url.")
             return None
 
     def _parse_product(self, item_tag: Tag) -> Product:
@@ -59,7 +77,7 @@ class DentalStall:
 
         item_other_tag = item_details_tag.select_one(".mf-product-price-box > .addtocart-buynow-btn > a")
 
-        item_title = item_title_tag and item_title_tag.text.strip()
+        item_title = item_title_tag and item_title_tag.text.strip().encode("ascii", "ignore").decode()
         item_price = item_price_tag and item_price_tag.text.strip().encode("ascii", "ignore").decode()
         item_image_src = thumbnail_tag.select_one("img").get("data-lazy-src")
         # item_src = thumbnail_tag and thumbnail_tag.get("href")
@@ -76,18 +94,32 @@ class DentalStall:
         items_tag = soup.select("#mf-shop-content > .products > li")
         for item_tag in items_tag:
             product_details = self._parse_product(item_tag)
-            # check if price hasn't changed using caching
-            # if yes, then download
+            self.parsed_products += 1
 
+            # don't update the product details in DB if price didn't change
+            sku = product_details.get("sku")
+            price = product_details.get("price")
+            if cache and cache.get(sku) == price: continue
+
+            # download image and get product object
+            # ignore product if failed to download image of the product
             product = self._to_product(product_details)
             if not product: continue
 
-            self.products[product.sku] = product
+            # save product price in cache
+            if cache: cache.set(product.sku, product.price)
+            self.products[sku] = product
             self.scraped_with_image += 1
 
-    def save(self, storage: Storage):
+    def save(self, storage: Storage) -> None:
+        logging.info("Saving products in DB.")
         self.updated_in_db = 0
         for product in self.products.values():
             storage.put(product.sku, product.asdict)
             self.updated_in_db += 1
         storage.commit()
+
+    def notify(self) -> None:
+        logging.info(f"Parsed {self.parsed_products} products from {config.N_PAGES} pages.")
+        logging.info(f"Downloaded {self.scraped_with_image} images of products.")
+        logging.info(f"Updated {self.updated_in_db} products in database.")

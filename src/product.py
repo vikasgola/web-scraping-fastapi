@@ -10,4 +10,3 @@ class Product:
     @property
     def asdict(self):
         return asdict(self)
-
