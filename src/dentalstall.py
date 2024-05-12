@@ -104,7 +104,7 @@ class DentalStall:
         item_sku = item_other_tag and item_other_tag.get("data-product_sku").strip()
         return {
             "sku": item_sku,
-            "price": item_price,
+            "price": item_price or "Not Found!",
             "title": item_title,
             "image_url": item_image_src
         }
@@ -119,7 +119,8 @@ class DentalStall:
             # don't update the product details in DB if price didn't change
             sku = product_details.get("sku")
             price = product_details.get("price")
-            if cache and cache.get(sku) == price: continue
+            if cache and cache.exists(sku) and cache.get(sku) == price:
+                continue
 
             # download image and get product object
             # ignore product if failed to download image of the product
