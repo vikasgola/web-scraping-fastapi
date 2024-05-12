@@ -3,7 +3,7 @@
 - Settings can be changed for the app in the `.env` file of root directory of this project.
   - number of pages to parse
   - providing the proxy
-- For easier setup, I have provided docker compose file. Check section 'How to Run'.
+- For easier setup, I have provided docker compose file. Check section 'How to Setup & Run'.
   - Download docker from [here](https://www.docker.com/)
 - Scraped information of the products will get stored in JSON file at `resources/products.json`.
 - Redis is being used as in-memory database for caching. It will auto start in the docker container from provided docker compose file.
